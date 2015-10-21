@@ -9,6 +9,7 @@
 #include <GLFW/glfw3.h>
 
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <stdio.h>
 #include <string.h>
@@ -18,6 +19,7 @@
 #include "Timer.h"
 #include "FPSTimer.h"
 #include "Logger.h"
+#include "ShaderWithVariables.h"
 
 Timer g_timer;
 double g_lastFrameTime = 0.0;
@@ -30,6 +32,9 @@ int modifier_mode = 0;
 
 GLFWwindow* g_pWindow = NULL;
 
+ShaderWithVariables m_plane;
+const glm::ivec2 vp(1000, 800);
+
 static void ErrorCallback(int p_Error, const char* p_Description)
 {
     (void)p_Error;
@@ -37,6 +42,52 @@ static void ErrorCallback(int p_Error, const char* p_Description)
     LOG_INFO("ERROR: %d, %s", p_Error, p_Description);
 }
 
+void initGL()
+{
+    m_plane.initProgram("basicplane");
+    m_plane.bindVAO();
+
+    const glm::vec3 minPt(-10.0f, 0.0f, -10.0f);
+    const glm::vec3 maxPt(10.0f, 0.0f, 10.0f);
+    const float verts[] = {
+        minPt.x, minPt.y, minPt.z,
+        minPt.x, minPt.y, maxPt.z,
+        maxPt.x, minPt.y, maxPt.z,
+        maxPt.x, minPt.y, minPt.z,
+    };
+    GLuint vertVbo = 0;
+    glGenBuffers(1, &vertVbo);
+    m_plane.AddVbo("vPosition", vertVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vertVbo);
+    glBufferData(GL_ARRAY_BUFFER, 4 * 3 * sizeof(GLfloat), verts, GL_STATIC_DRAW);
+    glVertexAttribPointer(m_plane.GetAttrLoc("vPosition"), 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+    const float texs[] = {
+        0.0f, 0.0f,
+        1.0f, 0.0f,
+        1.0f, 1.0f,
+        0.0f, 1.0f,
+    };
+    GLuint colVbo = 0;
+    glGenBuffers(1, &colVbo);
+    m_plane.AddVbo("vTexCoord", colVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, colVbo);
+    glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(GLfloat), texs, GL_STATIC_DRAW);
+    glVertexAttribPointer(m_plane.GetAttrLoc("vTexCoord"), 2, GL_FLOAT, GL_FALSE, 0, NULL);
+
+    glEnableVertexAttribArray(m_plane.GetAttrLoc("vPosition"));
+    glEnableVertexAttribArray(m_plane.GetAttrLoc("vTexCoord"));
+
+    const unsigned int tris[] = {
+        0, 3, 2, 1, 0, 2, // ccw
+    };
+    GLuint triVbo = 0;
+    glGenBuffers(1, &triVbo);
+    m_plane.AddVbo("elements", triVbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triVbo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 2 * 3 * sizeof(GLuint), tris, GL_STATIC_DRAW);
+    glBindVertexArray(0);
+}
 
 void keyboard(GLFWwindow* pWindow, int key, int codes, int action, int mods)
 {
@@ -117,8 +168,40 @@ void resize(GLFWwindow* pWindow, int w, int h)
 
 void display()
 {
-    glClearColor(1.f, 1.f, 0.f, 0.f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    const float lum = .6f;
+    glClearColor(lum, lum, lum, 0.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    const glm::mat4 lookat = glm::lookAt(
+        glm::vec3(1.f, 1.f, 1.f),
+        glm::vec3(0.f),
+        glm::vec3(0.f, 1.f, 0.f)
+        );
+
+    const glm::mat4 persp = glm::perspective(
+        90.0f,
+        static_cast<float>(vp.x) / static_cast<float>(vp.y),
+        0.004f,
+        500.0f);
+
+
+    glUseProgram(m_plane.prog());
+    {
+        glUniformMatrix4fv(m_plane.GetUniLoc("mvmtx"), 1, false, glm::value_ptr(lookat));
+        glUniformMatrix4fv(m_plane.GetUniLoc("prmtx"), 1, false, glm::value_ptr(persp));
+
+        m_plane.bindVAO();
+        {
+            // floor
+            glDrawElements(GL_TRIANGLES,
+                3 * 2, // 2 triangle pairs
+                GL_UNSIGNED_INT,
+                0);
+        }
+        glBindVertexArray(0);
+
+    }
+    glUseProgram(0);
 }
 
 void timestep()
@@ -167,11 +250,10 @@ int main(int argc, char** argv)
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
 
-    const glm::vec2 sz(800, 600);
     // Create a normal, decorated application window
     const std::string windowTitle = PROJECT_NAME "-GLFW-NoVRSDK";
 
-    l_Window = glfwCreateWindow(sz.x, sz.y, windowTitle.c_str(), NULL, NULL);
+    l_Window = glfwCreateWindow(vp.x, vp.y, windowTitle.c_str(), NULL, NULL);
 
     if (!l_Window)
     {
@@ -211,9 +293,9 @@ int main(int argc, char** argv)
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 #endif
 
+    initGL();
     glfwSwapInterval(0);
 
-    //g_app.initGL();
     while (!glfwWindowShouldClose(l_Window))
     {
         glfwPollEvents();
