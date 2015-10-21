@@ -137,6 +137,11 @@ void _InitPlaneAttributes()
 
 void initGL()
 {
+    m_basic.initProgram("basic");
+    m_basic.bindVAO();
+    _InitCubeAttributes();
+    glBindVertexArray(0);
+
     m_plane.initProgram("basicplane");
     m_plane.bindVAO();
     _InitPlaneAttributes();
@@ -225,9 +230,10 @@ void display()
     const float lum = .6f;
     glClearColor(lum, lum, lum, 0.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
 
     const glm::mat4 lookat = glm::lookAt(
-        glm::vec3(1.f, 1.f, 1.f),
+        glm::vec3(.4f, 2.f, -3.f),
         glm::vec3(0.f),
         glm::vec3(0.f, 1.f, 0.f)
         );
@@ -254,6 +260,20 @@ void display()
         }
         glBindVertexArray(0);
 
+    }
+    glUseProgram(0);
+
+    glUseProgram(m_basic.prog());
+    {
+        glUniformMatrix4fv(m_basic.GetUniLoc("mvmtx"), 1, false, glm::value_ptr(lookat));
+        glUniformMatrix4fv(m_basic.GetUniLoc("prmtx"), 1, false, glm::value_ptr(persp));
+
+        m_basic.bindVAO();
+        glDrawElements(GL_TRIANGLES,
+            6 * 3 * 2, // 6 triangle pairs
+            GL_UNSIGNED_INT,
+            0);
+        glBindVertexArray(0);
     }
     glUseProgram(0);
 }
