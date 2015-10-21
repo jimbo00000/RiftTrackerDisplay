@@ -210,8 +210,11 @@ void keyboard(GLFWwindow* pWindow, int key, int codes, int action, int mods)
         default:
             break;
 
-        case GLFW_KEY_SPACE:
-            //g_app.RecenterPose();
+    case GLFW_KEY_SPACE:
+            if (m_Hmd)
+            {
+                ovrHmd_RecenterPose(m_Hmd);
+            }
             break;
 
         case GLFW_KEY_ESCAPE:
