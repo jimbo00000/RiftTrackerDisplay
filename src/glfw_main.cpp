@@ -54,8 +54,9 @@ static void ErrorCallback(int p_Error, const char* p_Description)
 ///@brief While the basic VAO is bound, gen and bind all buffers and attribs.
 void _InitCubeAttributes()
 {
-    const glm::vec3 minPt(0, 0, 0);
-    const glm::vec3 maxPt(1, 1, 1);
+    // DK2 ~= 145mm x 65mm x 65
+    const glm::vec3 maxPt(.145f, .065f, .065f);
+    const glm::vec3 minPt = -maxPt;
     const glm::vec3 verts[] = {
         minPt,
         glm::vec3(maxPt.x, minPt.y, minPt.z),
@@ -65,6 +66,19 @@ void _InitCubeAttributes()
         glm::vec3(maxPt.x, minPt.y, maxPt.z),
         maxPt,
         glm::vec3(minPt.x, maxPt.y, maxPt.z)
+    };
+
+    const glm::vec3 minCol(0, 0, 0);
+    const glm::vec3 maxCol(1,1,1);
+    const glm::vec3 cols[] = {
+        minPt,
+        glm::vec3(maxCol.x, minCol.y, minCol.z),
+        glm::vec3(maxCol.x, maxCol.y, minCol.z),
+        glm::vec3(minCol.x, maxCol.y, minCol.z),
+        glm::vec3(minCol.x, minCol.y, maxCol.z),
+        glm::vec3(maxCol.x, minCol.y, maxCol.z),
+        maxCol,
+        glm::vec3(minCol.x, maxCol.y, maxCol.z)
     };
 
     GLuint vertVbo = 0;
@@ -78,7 +92,7 @@ void _InitCubeAttributes()
     glGenBuffers(1, &colVbo);
     m_basic.AddVbo("vColor", colVbo);
     glBindBuffer(GL_ARRAY_BUFFER, colVbo);
-    glBufferData(GL_ARRAY_BUFFER, 8 * 3 * sizeof(GLfloat), verts, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 8 * 3 * sizeof(GLfloat), cols, GL_STATIC_DRAW);
     glVertexAttribPointer(m_basic.GetAttrLoc("vColor"), 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
     glEnableVertexAttribArray(m_basic.GetAttrLoc("vPosition"));
@@ -102,8 +116,8 @@ void _InitCubeAttributes()
 ///@brief While the basic VAO is bound, gen and bind all buffers and attribs.
 void _InitPlaneAttributes()
 {
-    const glm::vec3 minPt(-10.0f, 0.0f, -10.0f);
-    const glm::vec3 maxPt(10.0f, 0.0f, 10.0f);
+    const glm::vec3 minPt(-1.0f, 0.0f, -1.0f);
+    const glm::vec3 maxPt(1.0f, 0.0f, 1.0f);
     const float verts[] = {
         minPt.x, minPt.y, minPt.z,
         minPt.x, minPt.y, maxPt.z,
@@ -269,7 +283,7 @@ void display()
     glEnable(GL_DEPTH_TEST);
 
     const glm::mat4 lookat = glm::lookAt(
-        glm::vec3(.4f, 2.f, -3.f),
+        glm::vec3(.1f, .7f, 1.f),
         glm::vec3(0.f),
         glm::vec3(0.f, 1.f, 0.f)
         );
@@ -302,6 +316,7 @@ void display()
     glUseProgram(m_basic.prog());
     {
         glm::mat4 mv = lookat;
+        mv = glm::translate(mv, glm::vec3(0.f, .4f, 0.f));
         mv *= g_poseMtx;
         glUniformMatrix4fv(m_basic.GetUniLoc("mvmtx"), 1, false, glm::value_ptr(mv));
         glUniformMatrix4fv(m_basic.GetUniLoc("prmtx"), 1, false, glm::value_ptr(persp));
