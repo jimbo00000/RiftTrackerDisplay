@@ -11,6 +11,10 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <OVR.h>
+#include <Kernel/OVR_Types.h> // Pull in OVR_OS_* defines 
+#include <OVR_CAPI.h>
+
 #include <stdio.h>
 #include <string.h>
 #include <sstream>
@@ -20,6 +24,7 @@
 #include "FPSTimer.h"
 #include "Logger.h"
 #include "ShaderWithVariables.h"
+#include "MatrixFunctions.h"
 
 Timer g_timer;
 double g_lastFrameTime = 0.0;
@@ -35,6 +40,9 @@ GLFWwindow* g_pWindow = NULL;
 ShaderWithVariables m_basic;
 ShaderWithVariables m_plane;
 const glm::ivec2 vp(1000, 800);
+
+ovrHmd m_Hmd;
+glm::mat4 g_poseMtx(1.f);
 
 static void ErrorCallback(int p_Error, const char* p_Description)
 {
@@ -146,6 +154,34 @@ void initGL()
     m_plane.bindVAO();
     _InitPlaneAttributes();
     glBindVertexArray(0);
+}
+
+void initTracking()
+{
+    ovrInitParams initParams = { 0 };
+    if (ovrSuccess != ovr_Initialize(NULL))
+    {
+        LOG_INFO("Failed to initialize the Oculus SDK");
+    }
+
+    if (ovrSuccess != ovrHmd_Create(0, &m_Hmd))
+    {
+        LOG_INFO("Could not create HMD");
+    }
+
+    const ovrBool ret = ovrHmd_ConfigureTracking(m_Hmd,
+        ovrTrackingCap_Orientation | ovrTrackingCap_MagYawCorrection | ovrTrackingCap_Position,
+        ovrTrackingCap_Orientation);
+    if (!OVR_SUCCESS(ret))
+    {
+        LOG_ERROR("Error calling ovrHmd_ConfigureTracking");
+    }
+}
+
+void exitTracking()
+{
+    ovrHmd_Destroy(m_Hmd);
+    ovr_Shutdown();
 }
 
 void keyboard(GLFWwindow* pWindow, int key, int codes, int action, int mods)
@@ -265,7 +301,9 @@ void display()
 
     glUseProgram(m_basic.prog());
     {
-        glUniformMatrix4fv(m_basic.GetUniLoc("mvmtx"), 1, false, glm::value_ptr(lookat));
+        glm::mat4 mv = lookat;
+        mv *= g_poseMtx;
+        glUniformMatrix4fv(m_basic.GetUniLoc("mvmtx"), 1, false, glm::value_ptr(mv));
         glUniformMatrix4fv(m_basic.GetUniLoc("prmtx"), 1, false, glm::value_ptr(persp));
 
         m_basic.bindVAO();
@@ -283,6 +321,9 @@ void timestep()
     const double absT = g_timer.seconds();
     const double dt = absT - g_lastFrameTime;
     g_lastFrameTime = absT;
+
+    ovrTrackingState ts = ovrHmd_GetTrackingState(m_Hmd, absT);
+    g_poseMtx = makeMatrixFromPose(ts.HeadPose.ThePose);
 }
 
 // OpenGL debug callback
@@ -368,6 +409,7 @@ int main(int argc, char** argv)
 #endif
 
     initGL();
+    initTracking();
     glfwSwapInterval(0);
 
     while (!glfwWindowShouldClose(l_Window))
@@ -393,6 +435,7 @@ int main(int argc, char** argv)
 #endif
     }
 
+    exitTracking();
     glfwDestroyWindow(l_Window);
     glfwTerminate();
 
